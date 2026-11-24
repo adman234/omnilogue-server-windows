@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Omnilogue Server",
+  "mainBinaryName": "omnilogue-server-tray",
+  "version": "2.1.1",
+  "identifier": "com.claude.history-viewer.server",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/OWNER/omnilogue-server-windows/releases/latest/download/latest-server-tray.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRDNUY3MUE5Q0Y1NUFBREIKUldUYnFsWFBxWEZmVEhLbWMxaVJvcU9xRXZqdWdpU2FFcy9kZk5MSHBLTlA3RmhrSStGazRpU1QK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "publisher": "Omnilogue Server for Windows contributors",
+    "shortDescription": "Omnilogue WebUI server in the Windows system tray",
+    "longDescription": "Runs the Omnilogue WebUI server in the background so you can browse your Claude Code history from a phone or another computer.",
+    "license": "MIT",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "externalBin": ["binaries/cchv-server"],
+    "resources": {
+      "resources/OMNILOGUE-LICENSE.txt": "OMNILOGUE-LICENSE.txt"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+target/
+node_modules/
+dist/
+_upstream/
+server-tray/src-tauri/binaries/*.exe
+server-tray/src-tauri/gen/
+*.key
+*.key.pub

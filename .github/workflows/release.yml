@@ -1,0 +1,105 @@
+# Builds a signed installer for each new upstream Omnilogue release and
+# publishes it as a release of this repo with the same tag. Installed copies
+# find it through latest-server-tray.json and update themselves.
+name: Release
+
+on:
+  schedule:
+    - cron: '17 6 * * *'  # daily; does nothing if the latest tag is already released
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Upstream tag to build, e.g. v2.1.1 (default is the latest release)
+        required: false
+      force:
+        description: Rebuild and replace the files even if this tag is already released
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.r.outputs.tag }}
+      build: ${{ steps.r.outputs.build }}
+    steps:
+      - id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          tag="${INPUT_TAG:-$(gh api repos/jhlee0409/omnilogue/releases/latest --jq .tag_name)}"
+          if ! [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected upstream tag '$tag'"; exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ "$FORCE" != "true" ] && gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "$tag is already released."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.build == 'true'
+    runs-on: windows-latest
+    env:
+      TAG: ${{ needs.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: jhlee0409/omnilogue
+          ref: refs/tags/${{ needs.resolve.outputs.tag }}
+          path: _upstream
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: server-tray/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            _upstream/src-tauri -> target
+            server-tray/src-tauri -> target
+
+      - name: Build
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw 'The TAURI_SIGNING_PRIVATE_KEY secret is not set.' }
+          ./scripts/build.ps1 -Tag $env:TAG -UpstreamDir _upstream -Repo $env:GITHUB_REPOSITORY
+
+      - name: Publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = Get-ChildItem dist | ForEach-Object FullName
+          gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @files --clobber --repo $env:GITHUB_REPOSITORY
+          } else {
+            $notes = "Windows tray app and installer for [Omnilogue $env:TAG](https://github.com/jhlee0409/omnilogue/releases/tag/$env:TAG).`n`nDownload ``OmnilogueServer_*_x64-setup.exe`` below. Installed copies update themselves."
+            gh release create $env:TAG @files --title "Omnilogue Server $env:TAG" --notes $notes --repo $env:GITHUB_REPOSITORY
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing the release failed.' }

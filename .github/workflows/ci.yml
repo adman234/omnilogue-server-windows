@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: server-tray/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server-tray/src-tauri -> target
+
+      # tauri-build checks that the sidecar exists; the real one is built by
+      # the release workflow from upstream.
+      - name: Placeholder server binary
+        run: New-Item -ItemType File -Force binaries/cchv-server-x86_64-pc-windows-msvc.exe | Out-Null
+
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test

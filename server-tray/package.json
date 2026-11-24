@@ -1,0 +1,13 @@
+{
+  "name": "omnilogue-server-tray",
+  "private": true,
+  "version": "2.1.1",
+  "description": "Tauri CLI for building the Omnilogue Server tray app and installer",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.2"
+  },
+  "packageManager": "pnpm@10.13.1"
+}
