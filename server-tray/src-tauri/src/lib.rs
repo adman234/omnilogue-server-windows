@@ -6,6 +6,7 @@ mod config;
 mod firewall;
 mod supervisor;
 mod tray;
+mod tray_log;
 mod updates;
 
 use std::path::PathBuf;
@@ -86,6 +87,8 @@ pub fn run() {
 fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let config_dir = app.path().app_config_dir()?;
     let log_dir = app.path().app_log_dir()?;
+    let _ = std::fs::create_dir_all(&log_dir);
+    tray_log::init(log_dir.join("server.log"));
     let server_exe = std::env::current_exe()?
         .parent()
         .ok_or("the app has no install directory")?

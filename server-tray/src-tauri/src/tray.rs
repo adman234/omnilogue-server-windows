@@ -6,6 +6,7 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt as _;
+use tauri_plugin_opener::OpenerExt as _;
 
 const OPEN: &str = "open";
 const COPY_LINK: &str = "copy-link";
@@ -180,6 +181,7 @@ pub(crate) fn show_update(app: &AppHandle, new_version: Option<&str>) {
 }
 
 fn handle_menu(app: &AppHandle, id: &str) {
+    log::info!("menu: {id}");
     let state = state(app);
     match id {
         OPEN => open_in_browser(app),
@@ -207,13 +209,7 @@ fn handle_menu(app: &AppHandle, id: &str) {
         CHECK_UPDATES => in_background(app, |app| updates::check(&app, true)),
         UPDATE_NOW => in_background(app, |app| updates::install_pending(&app)),
         SETTINGS => edit_settings(app),
-        LOGS => {
-            use tauri_plugin_opener::OpenerExt;
-            let _ = std::fs::create_dir_all(&state.log_dir);
-            let _ = app
-                .opener()
-                .open_path(state.log_dir.to_string_lossy(), None::<&str>);
-        }
+        LOGS => open_logs(app),
         FIREWALL => in_background(app, |app| firewall::offer(&app, true)),
         QUIT => app.exit(0),
         _ => {}
@@ -244,7 +240,41 @@ fn edit_settings(app: &AppHandle) {
         log::warn!("settings file is invalid, opening it anyway: {e}");
     }
     let path = config::path_in(dir);
-    if let Err(e) = std::process::Command::new("notepad.exe").arg(&path).spawn() {
-        log::warn!("cannot open {}: {e}", path.display());
+    // Through the shell, not CreateProcess: on Windows 11 notepad.exe may be
+    // only an app execution alias for the Store version.
+    if let Err(e) = app
+        .opener()
+        .open_path(path.to_string_lossy(), Some("notepad.exe"))
+    {
+        show_error(
+            app,
+            &format!("Cannot open {} in Notepad: {e}", path.display()),
+        );
     }
+}
+
+/// Opens Explorer on the logs folder, with server.log selected.
+fn open_logs(app: &AppHandle) {
+    let dir = &state(app).log_dir;
+    let _ = std::fs::create_dir_all(dir);
+    let file = dir.join("server.log");
+    let result = if file.exists() {
+        app.opener().reveal_item_in_dir(&file)
+    } else {
+        app.opener().open_path(dir.to_string_lossy(), None::<&str>)
+    };
+    if let Err(e) = result {
+        show_error(app, &format!("Cannot open {}: {e}", dir.display()));
+    }
+}
+
+/// Logs the error and shows it, without blocking the menu.
+fn show_error(app: &AppHandle, text: &str) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+    log::warn!("{text}");
+    app.dialog()
+        .message(text)
+        .title("Omnilogue Server")
+        .kind(MessageDialogKind::Error)
+        .show(|_| {});
 }
