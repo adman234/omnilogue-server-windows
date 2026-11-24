@@ -258,11 +258,25 @@ fn open_logs(app: &AppHandle) {
     let dir = &state(app).log_dir;
     let _ = std::fs::create_dir_all(dir);
     let file = dir.join("server.log");
-    let result = if file.exists() {
-        app.opener().reveal_item_in_dir(&file)
-    } else {
-        app.opener().open_path(dir.to_string_lossy(), None::<&str>)
+    // Explorer itself, not the shell API: ShellExecute on a folder and
+    // SHOpenFolderAndSelectItems both report success from the tray app but
+    // open no window.
+    #[cfg(windows)]
+    let result = {
+        use std::os::windows::process::CommandExt;
+        let mut explorer = std::process::Command::new("explorer.exe");
+        if file.exists() {
+            explorer.raw_arg(format!("/select,\"{}\"", file.display()));
+        } else {
+            explorer.arg(dir);
+        }
+        explorer.spawn().map(drop).map_err(|e| e.to_string())
     };
+    #[cfg(not(windows))]
+    let result = app
+        .opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| e.to_string());
     if let Err(e) = result {
         show_error(app, &format!("Cannot open {}: {e}", dir.display()));
     }
