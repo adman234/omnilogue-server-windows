@@ -14,10 +14,16 @@ Adding a Windows target to its matrix gives Windows users a plain
 `cchv-server.exe`, which is all a scheduled task or a service wrapper needs:
 
 ```yaml
-- os: windows-latest
+- platform: windows-latest
   target: x86_64-pc-windows-msvc
-  artifact: omnilogue-server-windows-x64.exe
+  artifact: cchv-server-windows-x64
 ```
+
+On Windows the built file is `claude-code-history-viewer.exe` and steps run in
+PowerShell by default, so the "Package single binary" step needs a Windows
+variant (for example `shell: bash`, copying to `cchv-server.exe` and making a
+`.zip`). `update-homebrew` downloads its four assets by name, so a Windows
+asset doesn't affect it.
 
 The binary builds and runs on Windows today. The packaging in this repo has used
 v2.1.1 built this way, with no source changes.
